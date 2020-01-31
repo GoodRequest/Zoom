@@ -1,0 +1,13 @@
+apply plugin: 'kotlin-kapt'
+apply plugin: 'idea'
+
+dependencies {
+    compile project(':zoom')
+    kapt project(':autozoom')
+}
+
+idea {
+    module {
+        generatedSourceDirs += files('build/generated/source/kaptKotlin/main')
+    }
+}
