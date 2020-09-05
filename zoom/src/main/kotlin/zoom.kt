@@ -4,7 +4,11 @@ package zoom
 @Retention(AnnotationRetention.SOURCE)
 annotation class Zoom(val name: String = "")
 
-interface Getter<A, B> { val get: (A) -> B }
+interface Getter<A, B> : (A) -> B {
+    val get: (A) -> B
+    override fun invoke(a: A): B = get(a)
+}
+
 interface Setter<A, B> { val set: (A, B) -> A }
 
 class Prism<A, B>(
@@ -18,7 +22,8 @@ interface Lens<A, B> : Getter<A, B>, Setter<A, B> {
 
 interface Optional<A, B> : Getter<A, B?>, Setter<A, B> {
     override val get: (A) -> B?
-    override val set: (A, B) -> A }
+    override val set: (A, B) -> A
+}
 
 fun <A, B, C> Getter<A, B>.map(f: (B) -> C) = object : Getter<A, C> {
     override val get: (A) -> C = { f(this@map.get(it)) }
@@ -107,8 +112,8 @@ fun <A, V> Optional<A, List<V>>.first(predicate: (V) -> Boolean) = compose(objec
 })
 
 fun <A, B> Lens<A, B>.optional() = object: Optional<A, B> {
-    override val get: (A) -> B?   = this@optional::get.get()
-    override val set: (A, B) -> A = this@optional::set.get()
+    override val get: (A) -> B?   = this@optional.get
+    override val set: (A, B) -> A = this@optional.set
 }
 
 fun <A, B> Lens<A, B>    .modify(a: A, f: B.() -> B): A = set(a, f(get(a)))

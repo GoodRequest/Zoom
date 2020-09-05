@@ -1,7 +1,7 @@
 apply plugin: 'kotlin'
 
 group 'com.goodrequest.zoom'
-version '1.0'
+version '1.0.2'
 
 buildscript {
     ext.kotlin_version = '1.4.0'
