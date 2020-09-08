@@ -39,6 +39,11 @@ fun <A, B> optional(getter: (A) -> B?, setter: (A, B) -> A) = object: Optional<A
     override val set = setter
 }
 
+fun <A, B> nullableOptional(getter: (A) -> B?, setter: (A, B?) -> A) = object: Optional<A, B?> {
+    override val get = getter
+    override val set = setter
+}
+
 fun <A, B, C> Lens<A, B>.compose(other: Lens<B, C>) = object: Lens<A, C> {
     override val get = { a: A       -> other.get(this@compose.get(a)) }
     override val set = { a: A, c: C -> this@compose.set(a, other.set(this@compose.get(a), c)) }
