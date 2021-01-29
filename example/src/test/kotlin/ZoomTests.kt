@@ -3,7 +3,7 @@ import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import zoom.Lens
-import zoom.Optional
+import zoom.at
 import zoom.first
 import zoom.index
 import kotlin.random.Random
@@ -33,7 +33,7 @@ class ZoomTests {
 
             @TestFactory
             fun `optional may return null value`(): Collection<DynamicTest> {
-                val optional = listOf<Optional<User, *>>(UserZoom.age, UserZoom.gender, UserZoom.address.street)
+                val optional = listOf<Lens<User, *>>(UserZoom.age, UserZoom.gender, UserZoom.address.street)
                 return optional.map { o ->
                     DynamicTest.dynamicTest("Optional<User, *>.get(User) can be null") {
                         assertTrue(o.get(userNull) != null || o.get(userNull) == null)
@@ -122,10 +122,16 @@ class ZoomTests {
         @Nested
         @DisplayName("when set")
         inner class Set {
-            var dynamicState = State(generateXUsers(5) + listOf(generateUserNull()))
+            private var dynamicState = State(generateXUsers(5) + listOf(generateUserNull()))
+
+            @BeforeEach
+            fun beforeEach() {
+                dynamicState = State(generateXUsers(5) + listOf(generateUserNull().copy(name = "Marek")))
+            }
+
             @Test
             fun `lens list elements set index should return updated copy`() {
-                val index = Random.nextInt(0, state.usersList.size)
+                val index = Random.nextInt(0, dynamicState.usersList.size)
                 val indexRef = MyZoom.usersList.index(index)
 
                 dynamicState = indexRef.name.set(dynamicState, "Jozko")
@@ -139,6 +145,131 @@ class ZoomTests {
 
                 dynamicState = indexRef.address.street.set(dynamicState, Street("Aloho mora", 666))
                 assertEquals(Street("Aloho mora", 666), indexRef.address.street.get(dynamicState))
+            }
+
+            @Test
+            fun `lens list elements set index should return same state if out of bounds`() {
+                val index = dynamicState.usersList.size
+                val indexRef = MyZoom.usersList.index(index)
+
+                assertEquals(dynamicState, indexRef.name.set(dynamicState, "Jozko"))
+                assertEquals(dynamicState, indexRef.age.set(dynamicState, 99))
+                assertEquals(dynamicState, indexRef.address.city.name.set(dynamicState, "Krakow"))
+                assertEquals(dynamicState, indexRef.address.street.set(dynamicState, Street("Aloho mora", 666)))
+            }
+
+            @Test
+            fun `lens list elements set predicate should return updated copy if matched`() {
+                val predicate: (User) -> Boolean = { it.name == "Marek" }
+                val predicateRef = MyZoom.usersList.first(predicate)
+
+                dynamicState = predicateRef.name.set(dynamicState, "Jozko")
+                assertEquals("Jozko", predicateRef.name.get(dynamicState))
+
+                dynamicState = predicateRef.age.set(dynamicState, 99)
+                assertEquals(99, predicateRef.age(dynamicState))
+
+                dynamicState = predicateRef.address.city.name.set(dynamicState, "Krakow")
+                assertEquals("Krakow", predicateRef.address.city.name.get(dynamicState))
+
+                dynamicState = predicateRef.address.street.set(dynamicState, Street("Aloho mora", 666))
+                assertEquals(Street("Aloho mora", 666), predicateRef.address.street.get(dynamicState))
+            }
+
+            @Test
+            fun `lens list elements set predicate should return null if not matched`() {
+                val predicate: (User) -> Boolean = { it.name == "Trump" }
+                val predicateRef = MyZoom.usersList.first(predicate)
+
+                assertEquals(dynamicState, predicateRef.name.set(dynamicState, "Jozko"))
+                assertEquals(dynamicState, predicateRef.age.set(dynamicState, 99))
+                assertEquals(dynamicState, predicateRef.address.city.name.set(dynamicState, "Krakow"))
+                assertEquals(dynamicState, predicateRef.address.street.set(dynamicState, Street("Aloho mora", 666)))
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Map test cases")
+    inner class MapCaseTest {
+        private val state = State(usersMap = generateXUsers(10).associateBy { it.name })
+
+        @Nested
+        @DisplayName("when get")
+        inner class Get {
+            @Test
+            fun `lens map of elements get at should return expected`() {
+                val key = state.usersMap.keys.toList()[Random.nextInt(0, state.usersMap.keys.size)]
+                val expected = state.usersMap[key]
+                val atRef = MyZoom.usersMap.at(key)
+
+                assertEquals(expected, atRef.get(state))
+            }
+
+            @TestFactory
+            fun `lens map of elements get at should return null if not exists`(): Collection<DynamicTest> =
+                names.map { name ->
+                    if (state.usersMap[name] == null)
+                        DynamicTest.dynamicTest("Key $name = null") {
+                            assertNull(MyZoom.usersMap.at(name).get(state))
+                        }
+                    else
+                        DynamicTest.dynamicTest("Key $name = Value") {
+                            assertEquals(state.usersMap[name], MyZoom.usersMap.at(name).get(state))
+                        }
+                }
+
+            @TestFactory
+            fun `lens map of elements get at should return null if not exists and set`(): Collection<DynamicTest> =
+                    names.map { name ->
+                        if (state.usersMap[name] == null)
+                            DynamicTest.dynamicTest("Key $name = null") {
+                                assertNull(MyZoom.usersMap.at(name).get(state))
+                            }
+                        else
+                            DynamicTest.dynamicTest("Key $name = Value") {
+                                assertEquals(state.usersMap[name], MyZoom.usersMap.at(name).get(state))
+                            }
+                    }
+        }
+
+        @Nested
+        @DisplayName("when set")
+        inner class Set {
+            private var dynamicState = State(generateXUsers(10))
+
+            @BeforeEach
+            fun beforeEach() {
+                dynamicState = State(generateXUsers(10))
+            }
+
+            @Test
+            fun `lens map of elements set at should return expected`() {
+                val key = dynamicState.usersMap.keys.toList()[Random.nextInt(0, dynamicState.usersMap.keys.size)]
+                val atRef = MyZoom.usersMap.at(key)
+
+                dynamicState = atRef.name.set(dynamicState, "Jozko")
+                assertEquals("Jozko", atRef.name.get(dynamicState))
+
+                dynamicState = atRef.age.set(dynamicState, 99)
+                assertEquals(99, atRef.age(dynamicState))
+
+                dynamicState = atRef.address.city.name.set(dynamicState, "Krakow")
+                assertEquals("Krakow", atRef.address.city.name.get(dynamicState))
+
+                dynamicState = atRef.address.street.set(dynamicState, Street("Aloho mora", 666))
+                assertEquals(Street("Aloho mora", 666), atRef.address.street.get(dynamicState))
+            }
+
+            @Test
+            fun `lens map of elements set at should return same state if not exists`() {
+                val key = "Charlie"
+                val atRef = MyZoom.usersMap.at(key)
+
+                assertEquals(dynamicState, atRef.name.set(dynamicState, "Jozko"))
+                assertEquals(dynamicState, atRef.age.set(dynamicState, 99))
+                assertEquals(dynamicState, atRef.address.city.name.set(dynamicState, "Krakow"))
+                assertEquals(dynamicState, atRef.address.street.set(dynamicState, Street("Aloho mora", 666)))
             }
         }
     }
