@@ -1,110 +1,101 @@
 package zoom
 
-@Target(AnnotationTarget.CLASS)
-@Retention(AnnotationRetention.SOURCE)
-annotation class Zoom(val name: String = "")
 
-interface Getter<A, B> : (A) -> B {
-    val get: (A) -> B
+public interface Getter<A, B> : (A) -> B {
+    public val get: (A) -> B
     override fun invoke(a: A): B = get(a)
 }
 
-interface Setter<A, B> { val set: (A, B) -> A }
-
-class Prism<A, B>(
-    val get: (A) -> B?,
-    val set: (B) -> A)
-
-interface Lens<A, B> : Getter<A, B>, Setter<A, B> {
-    override val get: (A) -> B
-    override val set: (A, B) -> A
+public interface Setter<A, B> {
+    public val set: (A, B) -> A
 }
 
-interface Optional<A, B> : Getter<A, B?>, Setter<A, B> {
-    override val get: (A) -> B?
-    override val set: (A, B) -> A
-}
+public class Lens<A, B>(
+    override val get: (A)    -> B,
+    override val set: (A, B) -> A) : Getter<A, B>, Setter<A, B>
 
-fun <A, B, C> Getter<A, B>.map(f: (B) -> C) = object : Getter<A, C> {
-    override val get: (A) -> C = { f(this@map.get(it)) }
-}
+public class Optional<A, B>(
+    override val get: (A)    -> B?,
+    override val set: (A, B) -> A) : Getter<A, B?>, Setter<A, B>
 
-fun <A, B> lens(getter: (A) -> B, setter: (A, B) -> A) = object: Lens<A, B> {
-    override val get = getter
-    override val set = setter
-}
+public class Prism<A, B>(
+    public val get: (A) -> B?,
+    public val set: (B) -> A)
 
-fun <A, B> optional(getter: (A) -> B?, setter: (A, B) -> A) = object: Optional<A, B> {
-    override val get = getter
-    override val set = setter
-}
 
-fun <A, B> nullableOptional(getter: (A) -> B?, setter: (A, B?) -> A) = object: Optional<A, B?> {
-    override val get = getter
-    override val set = setter
-}
+// Lens composition
 
-fun <A, B, C> Lens<A, B>.compose(other: Lens<B, C>) = object: Lens<A, C> {
-    override val get = { a: A       -> other.get(this@compose.get(a)) }
-    override val set = { a: A, c: C -> this@compose.set(a, other.set(this@compose.get(a), c)) }
-}
+public fun <A, B, C> Lens<A, B>.compose(other: Lens<B, C>): Lens<A, C> = Lens(
+    get = { a: A       -> other.get(get(a)) },
+    set = { a: A, c: C -> set(a, other.set(get(a), c)) }
+)
 
-fun <A, B, C> Lens<A, B>.compose(other: Prism<B, C>) = object: Optional<A, C> {
-    override val get = { a: A       -> other.get(this@compose.get(a)) }
-    override val set = { a: A, c: C -> this@compose.set(a, other.set(c)) }
-}
+public fun <A, B, C> Lens<A, B>.compose(other: Optional<B, C>): Optional<A, C> = Optional(
+    get = { a: A       -> other.get(get(a)) },
+    set = { a: A, c: C -> set(a, other.set(get(a), c)) }
+)
 
-fun <A, B, C> Lens<A, B>.compose(other: Optional<B, C>) = object: Optional<A, C> {
-    override val get = { a: A       -> other.get(this@compose.get(a)) }
-    override val set = { a: A, c: C -> this@compose.set(a, other.set(this@compose.get(a), c)) }
-}
+public fun <A, B, C> Lens<A, B>.compose(other: Prism<B, C>): Optional<A, C> = Optional(
+    get = { a: A       -> other.get(get(a)) },
+    set = { a: A, c: C -> set(a, other.set(c)) }
+)
 
-fun <A, B, C> Optional<A, B>.compose(other: Lens<B, C>) = object: Optional<A, C> {
-    override val get = { a: A       -> this@compose.get(a)?.let { other.get(it) } }
-    override val set = { a: A, c: C -> this@compose.get(a)?.let { this@compose.set(a, other.set(it, c)) } ?: a }
-}
+public fun <A, B, C> Lens<A, B?>.compose(other: Lens<B, C>): Optional<A, C> = Optional(
+    get = { a: A       -> get(a)?.let (other.get) },
+    set = { a: A, c: C -> get(a)?.let { set(a, other.set(it, c)) } ?: a }
+)
 
-fun <A, B, C> Optional<A, B>.compose(other: Optional<B, C>) = object: Optional<A, C> {
-    override val get = { a: A       -> this@compose.get(a)?.let { other.get(it) } }
-    override val set = { a: A, c: C -> this@compose.get(a)?.let { this@compose.set(a, other.set(it, c)) } ?: a }
-}
+// Optional composition
 
-fun <A, B, C> Optional<A, B>.compose(other: Prism<B, C>) = object: Optional<A, C> {
-    override val get = { a: A       -> this@compose.get(a)?.let { other.get(it) } }
-    override val set = { a: A, c: C -> this@compose.get(a)?.let { this@compose.set(a, other.set(c)) } ?: a }
-}
+public fun <A, B, C> Optional<A, B>.compose(other: Lens<B, C>): Optional<A, C> = Optional(
+    get = { a: A       -> get(a)?.let (other.get) },
+    set = { a: A, c: C -> get(a)?.let { set(a, other.set(it, c)) } ?: a }
+)
 
-fun <A, K, V> Lens<A, Map<K, V>>.at(key: K) = compose(object: Optional<Map<K, V>, V> {
-    override val get = { map: Map<K, V>            -> map[key] }
-    override val set = { map: Map<K, V>, value: V? -> if(value == null) map - key else map + (key to value) }
-})
+public fun <A, B, C> Optional<A, B>.compose(other: Optional<B, C>): Optional<A, C> = Optional(
+    get = { a: A       -> get(a)?.let (other.get) },
+    set = { a: A, c: C -> get(a)?.let { set(a, other.set(it, c)) } ?: a }
+)
 
-fun <A, K, V> Optional<A, Map<K, V>>.at(key: K) = compose(object: Optional<Map<K, V>, V> {
-    override val get = { map: Map<K, V>            -> map[key] }
-    override val set = { map: Map<K, V>, value: V? -> if(value == null) map - key else map + (key to value) }
-})
+public fun <A, B, C> Optional<A, B>.compose(other: Prism<B, C>): Optional<A, C> = Optional(
+    get = { a: A       -> get(a)?.let (other.get) },
+    set = { a: A, c: C -> get(a)?.let { set(a, other.set(c)) } ?: a }
+)
 
-fun <A, V> Lens<A, List<V>>.index(index: Int) = compose(object: Optional<List<V>, V> {
-    override val get = { list: List<V>           -> list.getOrNull(index) }
-    override val set = { list: List<V>, value: V -> list.mapIndexed { i, v -> if (i == index) value else v } }
-})
 
-fun <A, V> Lens<A, List<V>>.first(predicate: (V) -> Boolean) = compose(object: Optional<List<V>, V> {
-    override val get = { list: List<V>            -> list.firstOrNull(predicate) }
-    override val set = { list: List<V>, value: V? -> if(value != null )
-                                                        list.indexOfFirst(predicate)
-                                                        .takeIf { it != -1 }
-                                                        ?.let { index -> list.mapIndexed { i, v -> if (i == index) value else v } } ?: list
-                                                     else
-                                                list.indexOfFirst(predicate)
-                                                        .takeIf { it != -1 }
-                                                        ?.let { index -> list.filterIndexed { i, _ -> i != index } } ?: list
-                                                    }
-})
+// Collections
 
-fun <A, V> Optional<A, List<V>>.first(predicate: (V) -> Boolean) = compose(object: Optional<List<V>, V> {
-    override val get = { list: List<V>            -> list.firstOrNull(predicate) }
-    override val set = { list: List<V>, value: V? -> if(value != null )
+public fun <A, K, V> Lens<A, Map<K, V>>.at(key: K): Optional<A, V> = compose(Optional(
+    get = { map: Map<K, V>            -> map[key] },
+    set = { map: Map<K, V>, value: V? -> if(value == null) map - key else map + (key to value) }
+))
+
+public fun <A, K, V> Optional<A, Map<K, V>>.at(key: K): Optional<A, V> = compose(Optional(
+    get = { map: Map<K, V>            -> map[key] },
+    set = { map: Map<K, V>, value: V? -> if(value == null) map - key else map + (key to value) }
+))
+
+public fun <A, V> Lens<A, List<V>>.index(index: Int): Optional<A, V> = compose(Optional(
+    get = { list: List<V>           -> list.getOrNull(index) },
+    set = { list: List<V>, value: V -> list.mapIndexed { i, v -> if (i == index) value else v } }
+))
+
+public fun <A, V> Lens<A, List<V>>.first(predicate: (V) -> Boolean): Optional<A, V> = compose(Optional(
+    get = { list: List<V>            -> list.firstOrNull(predicate) },
+    set = { list: List<V>, value: V? -> if(value != null )
+                                            list.indexOfFirst(predicate)
+                                            .takeIf { it != -1 }
+                                            ?.let { index -> list.mapIndexed { i, v -> if (i == index) value else v } } ?: list
+                                         else
+                                    list.indexOfFirst(predicate)
+                                            .takeIf { it != -1 }
+                                            ?.let { index -> list.filterIndexed { i, _ -> i != index } } ?: list
+                                        }
+))
+
+public fun <A, V> Optional<A, List<V>>.first(predicate: (V) -> Boolean): Optional<A, V> = compose(Optional(
+    get = { list: List<V>            -> list.firstOrNull(predicate) },
+    set = { list: List<V>, value: V? -> if(value != null )
         list.indexOfFirst(predicate)
             .takeIf { it != -1 }
             ?.let { index -> list.mapIndexed { i, v -> if (i == index) value else v } } ?: list
@@ -113,20 +104,36 @@ fun <A, V> Optional<A, List<V>>.first(predicate: (V) -> Boolean) = compose(objec
             .takeIf { it != -1 }
             ?.let { index -> list.filterIndexed { i, _ -> i != index } } ?: list
     }
-    override fun toString() = "[$?]"
-})
+))
 
-fun <A, B> Lens<A, B>.optional() = object: Optional<A, B> {
-    override val get: (A) -> B?   = this@optional.get
-    override val set: (A, B) -> A = this@optional.set
+
+
+
+public fun <A, B> Lens<A, B>.optional(): Optional<A, B> = Optional(get, set)
+
+public fun <A, B, C> Getter<A, B>.map(f: (B) -> C): Getter<A, C> = object : Getter<A, C> {
+    override val get: (A) -> C = { f(this@map.get(it)) }
 }
 
-fun <A, B> Lens<A, B>    .modify(a: A, f: B.() -> B): A = set(a, f(get(a)))
-fun <A, B> Optional<A, B>.modify(a: A, f: B.() -> B): A = get(a)?.let{ set(a, f(it)) } ?: a
+public fun <A, B> Lens<A, B>    .modify(a: A, f: B.() -> B): A = set(a, f(get(a)))
+public fun <A, B> Optional<A, B>.modify(a: A, f: B.() -> B): A = get(a)?.let{ set(a, f(it)) } ?: a
 
-infix fun <A, B> Lens<A, B>     .modify(update: B.() -> B): (A) -> A = { modify(it, update) }
-infix fun <A, B> Optional<A, B> .modify(update: B.() -> B): (A) -> A = { modify(it, update) }
+public infix fun <A, B> Lens<A, B>     .modify(update: B.() -> B): (A) -> A = { modify(it, update) }
+public infix fun <A, B> Optional<A, B> .modify(update: B.() -> B): (A) -> A = { modify(it, update) }
 
 @JvmName("factory")
-operator fun <A, B> Setter<A, B>.rem(value: A): (B) -> A = { b -> this.set(value, b) }
-operator fun <A, B> Setter<A, B>.rem(value: B): (A) -> A = { a -> this.set(a, value) }
+public operator fun <A, B> Setter<A, B>.rem(value: A): (B) -> A = { b -> this.set(value, b) }
+public operator fun <A, B> Setter<A, B>.rem(value: B): (A) -> A = { a -> this.set(a, value) }
+
+
+
+// Annotation processor utils
+
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.SOURCE)
+public annotation class Zoom(val name: String = "")
+
+public fun <A, B> lens(            getter: (A) -> B,  setter: (A, B) -> A)  : Lens<A, B>      = Lens(getter, setter)
+public fun <A, B> optional(        getter: (A) -> B?, setter: (A, B) -> A)  : Optional<A, B>  = Optional(getter, setter)
+public fun <A, B> nullableLens(    getter: (A) -> B?, setter: (A, B?) -> A) : Lens<A, B?>     = Lens(getter, setter)
+public fun <A, B> nullableOptional(getter: (A) -> B?, setter: (A, B?) -> A) : Optional<A, B?> = Optional(getter, setter)
