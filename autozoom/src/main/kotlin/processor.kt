@@ -29,7 +29,7 @@ class ZoomProcessor : AbstractProcessor() {
             // lens or optional for all fields
             fields.forEach { field ->
                 val isNullable = field.getAnnotation(Nullable::class.java) != null
-                val opticType  = if(isNullable) "optional" else "lens"
+                val opticType  = if(isNullable) "nullableLens" else "lens"
                 file.appendText("val $zoomName.$field get() = $opticType(" +
                     "getter = $className::$field, " +
                     "setter = { a, b -> a.copy($field = b) })\n")
@@ -38,6 +38,7 @@ class ZoomProcessor : AbstractProcessor() {
             // lens composition
             fields.forEach { field ->
                 file.appendText("val <A> Lens<A, $className>.$field get() = compose($zoomName.$field) \n")
+                file.appendText("val <A> Lens<A, $className?>.$field get() = compose($zoomName.$field) \n")
             }
 
             // optional composition
