@@ -8,8 +8,10 @@ const val AMOUNT = 5
 
 @Zoom("MyZoom") //Name your optics
 data class State(
-        val usersList: List<User> = generateXUsers(AMOUNT),
-        val usersMap: Map<String, User> = generateXUsers(AMOUNT).associateBy { it.name }
+        val usersList    : List<User>         = generateXUsers(AMOUNT),
+        val usersListNull: List<User>?        = null,
+        val usersMap     : Map<String, User>  = generateXUsers(AMOUNT).associateBy { it.name },
+        val usersMapNull : Map<String, User>? = null
 )
 
 @Zoom
