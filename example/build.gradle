@@ -4,10 +4,23 @@ apply plugin: 'idea'
 dependencies {
     compile project(':zoom')
     kapt project(':autozoom')
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.3.1'
 }
 
 idea {
     module {
         generatedSourceDirs += files('build/generated/source/kaptKotlin/main')
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
+
+compileKotlin {
+    kotlinOptions {
+        languageVersion = "1.4"
     }
 }
